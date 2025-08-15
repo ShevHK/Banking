@@ -1,6 +1,403 @@
 @Banking_HostAddress = http://localhost:5244
 
-GET {{Banking_HostAddress}}/weatherforecast/
+### Create Account (with API Key)
+POST {{Banking_HostAddress}}/api/accounts
+X-Api-Key: abra-cadabra
+Content-Type: application/json
+
+{
+  "ownerName": "Admin Admin",
+  "email": "admin@bank.com",
+  "initialBalance": 1000.00
+}
+
+
+@Banking_HostAddress = http://localhost:5244
+@authToken = 
+
+
+### Login (Get JWT Token)
+POST {{Banking_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@bank.com"
+}
+
+### Validate Token (Protected Route)
+POST {{Banking_HostAddress}}/api/auth/validate
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+### 2. ACCOUNT MANAGEMENT REQUESTS
+
+### Create Account
+POST {{Banking_HostAddress}}/api/accounts
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "ownerName": "John Doe",
+  "email": "john.doe@email.com",
+  "initialBalance": 1000.00
+}
+
+### Create Another Account for Testing Transfers
+POST {{Banking_HostAddress}}/api/accounts
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "ownerName": "Jane Smith",
+  "email": "jane.smith@email.com",
+  "initialBalance": 500.00
+}
+
+### Get Account by ID (without transactions)
+GET {{Banking_HostAddress}}/api/accounts/1?includeTransactions=false
+Authorization: Bearer {{authToken}}
 Accept: application/json
 
+### Get Account by ID (with transactions)
+GET {{Banking_HostAddress}}/api/accounts/1?includeTransactions=true
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Get Account by Account Number (without transactions)
+GET {{Banking_HostAddress}}/api/accounts/by-number/ACCOUNT_NUMBER_HERE?includeTransactions=false
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Get Account by Account Number (with transactions)
+GET {{Banking_HostAddress}}/api/accounts/by-number/ACCOUNT_NUMBER_HERE?includeTransactions=true
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Search Accounts (Paged)
+POST {{Banking_HostAddress}}/api/accounts/search
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "page": 1,
+  "pageSize": 10,
+  "searchTerm": "John"
+}
+
+### Get All Accounts (First Page)
+POST {{Banking_HostAddress}}/api/accounts/search
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "page": 1,
+  "pageSize": 10
+}
+
+### Update Account
+PUT {{Banking_HostAddress}}/api/accounts
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "id": 1,
+  "ownerName": "John Updated Doe",
+  "email": "john.updated@email.com"
+}
+
+### Get Account Balance
+POST {{Banking_HostAddress}}/api/accounts/balance
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 1
+}
+
+### Get Accounts with Recent Transactions
+GET {{Banking_HostAddress}}/api/accounts/recent-transactions?fromDate=2024-01-01T00:00:00Z
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Delete Account (should fail if has transactions)
+DELETE {{Banking_HostAddress}}/api/accounts/1
+Authorization: Bearer {{authToken}}
+
+### 3. TRANSACTION REQUESTS
+
+### Create Deposit
+POST {{Banking_HostAddress}}/api/transactions/deposit
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 1,
+  "amount": 250.00
+}
+
+### Create Withdrawal
+POST {{Banking_HostAddress}}/api/transactions/withdraw
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 1,
+  "amount": 100.00
+}
+
+### Create Transfer
+POST {{Banking_HostAddress}}/api/transactions/transfer
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "fromAccountId": 1,
+  "toAccountId": 2,
+  "amount": 150.00
+}
+
+### Create Withdrawal (Insufficient Funds Test)
+POST {{Banking_HostAddress}}/api/transactions/withdraw
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 1,
+  "amount": 999999.00
+}
+
+### Get Transactions by Account (Paged)
+POST {{Banking_HostAddress}}/api/transactions/by-account
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 1,
+  "page": 1,
+  "pageSize": 10
+}
+
+### Get Transactions by Date Range (Paged)
+POST {{Banking_HostAddress}}/api/transactions/by-date-range
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "fromDate": "2024-01-01T00:00:00Z",
+  "toDate": "2024-12-31T23:59:59Z",
+  "page": 1,
+  "pageSize": 10
+}
+
+### Get Account Balance (Transaction-based calculation)
+POST {{Banking_HostAddress}}/api/transactions/balance
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 1
+}
+
+### Get Transactions with Account Details
+GET {{Banking_HostAddress}}/api/transactions/with-accounts/1
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 4. ERROR TESTING REQUESTS
+
+### Test Unauthorized Access (No Token)
+GET {{Banking_HostAddress}}/api/accounts/1
+Accept: application/json
+
+### Test Invalid Token
+GET {{Banking_HostAddress}}/api/accounts/1
+Authorization: Bearer invalid_token_here
+Accept: application/json
+
+### Test Not Found
+GET {{Banking_HostAddress}}/api/accounts/99999
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### Test Validation Error (Empty Owner Name)
+POST {{Banking_HostAddress}}/api/accounts
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "ownerName": "",
+  "email": "test@email.com",
+  "initialBalance": 100.00
+}
+
+### Test Validation Error (Negative Amount)
+POST {{Banking_HostAddress}}/api/transactions/deposit
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 1,
+  "amount": -50.00
+}
+
+### Test Transfer to Same Account
+POST {{Banking_HostAddress}}/api/transactions/transfer
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "fromAccountId": 1,
+  "toAccountId": 1,
+  "amount": 100.00
+}
+
+### 5. COMPLEX WORKFLOW TEST
+
+### Complete Banking Workflow
+# Step 1: Login
+POST {{Banking_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@bank.com",
+  "password": "admin123"
+}
+
 ###
+# Step 2: Create Account 1
+POST {{Banking_HostAddress}}/api/accounts
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "ownerName": "Alice Johnson",
+  "email": "alice@example.com",
+  "initialBalance": 2000.00
+}
+
+###
+# Step 3: Create Account 2
+POST {{Banking_HostAddress}}/api/accounts
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "ownerName": "Bob Wilson",
+  "email": "bob@example.com",
+  "initialBalance": 1500.00
+}
+
+###
+# Step 4: Make Deposit
+POST {{Banking_HostAddress}}/api/transactions/deposit
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 1,
+  "amount": 500.00
+}
+
+###
+# Step 5: Make Transfer
+POST {{Banking_HostAddress}}/api/transactions/transfer
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "fromAccountId": 1,
+  "toAccountId": 2,
+  "amount": 300.00
+}
+
+###
+# Step 6: Check Balance
+POST {{Banking_HostAddress}}/api/accounts/balance
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 1
+}
+
+###
+# Step 7: Get Transaction History
+POST {{Banking_HostAddress}}/api/transactions/by-account
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 1,
+  "page": 1,
+  "pageSize": 20
+}
+
+### 6. PERFORMANCE TESTING
+
+### Get Large Account List
+POST {{Banking_HostAddress}}/api/accounts/search
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "page": 1,
+  "pageSize": 100
+}
+
+### Get Large Transaction List
+POST {{Banking_HostAddress}}/api/transactions/by-date-range
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "fromDate": "2020-01-01T00:00:00Z",
+  "toDate": "2030-12-31T23:59:59Z",
+  "page": 1,
+  "pageSize": 100
+}
+
+### 7. EDGE CASES
+
+### Zero Amount Deposit (Should Fail)
+POST {{Banking_HostAddress}}/api/transactions/deposit
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 1,
+  "amount": 0.00
+}
+
+### Transfer to Non-existent Account
+POST {{Banking_HostAddress}}/api/transactions/transfer
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "fromAccountId": 1,
+  "toAccountId": 99999,
+  "amount": 100.00
+}
+
+### Get Non-existent Account Transactions
+POST {{Banking_HostAddress}}/api/transactions/by-account
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "accountId": 99999,
+  "page": 1,
+  "pageSize": 10
+}
+
+### Invalid Date Range (From > To)
+POST {{Banking_HostAddress}}/api/transactions/by-date-range
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "fromDate": "2024-12-31T23:59:59Z",
+  "toDate": "2024-01-01T00:00:00Z",
+  "page": 1,
+  "pageSize": 10
+}
