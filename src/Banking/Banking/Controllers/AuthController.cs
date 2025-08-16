@@ -1,4 +1,5 @@
-﻿using Banking.BLL.Models;
+﻿using Banking.Attributes;
+using Banking.BLL.Models;
 using Banking.BLL.Models.Auth;
 using Banking.BLL.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -22,10 +23,13 @@ namespace Banking.Controllers
         }
 
         [HttpPost("login")]
+        [RequireApiKey]
         public async Task<ActionResult<ApiResponse<AuthResponse>>> Login([FromBody] LoginRequest request)
         {
+            //TODO
+            //enybody with api-key and basically any email can start session, has to be changed and check email if it is somebody from out partners table, also api-keys have to be unique for every
             _logger.LogInformation("Login attempt for email {Email}", request.Email);
-
+            
             if (string.IsNullOrWhiteSpace(request.Email))
             {
                 throw new Banking.BLL.Exceptions.ValidationException("Email is required");

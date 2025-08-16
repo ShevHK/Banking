@@ -15,6 +15,4 @@ namespace Banking.DAL.Entities
         public int? TargetAccountId { get; set; }
         public virtual Account? TargetAccount { get; set; }
     }
-
-
 }

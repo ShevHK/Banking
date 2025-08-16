@@ -1,4 +1,5 @@
-﻿using Banking.BLL.Exceptions;
+﻿using Banking.BLL.DTOs;
+using Banking.BLL.Exceptions;
 using Banking.BLL.Models;
 using Banking.BLL.Models.Account;
 using Banking.BLL.Models.Transaction;
@@ -14,14 +15,16 @@ namespace Banking.BLL.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<AccountService> _logger;
+        private readonly IBankingMapperService _mapper;
 
-        public AccountService(IUnitOfWork unitOfWork, ILogger<AccountService> logger)
+        public AccountService(IUnitOfWork unitOfWork, ILogger<AccountService> logger, IBankingMapperService mapper)
         {
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _mapper = mapper;
         }
 
-        public async Task<ApiResponse<Account>> CreateAccountAsync(CreateAccountRequest request)
+        public async Task<ApiResponse<AccountSummaryDTO>> CreateAccountAsync(CreateAccountRequest request)
         {
             _logger.LogInformation("Creating account for {OwnerName}", request.OwnerName);
 
@@ -52,10 +55,11 @@ namespace Banking.BLL.Services
 
             _logger.LogInformation("Account created successfully with ID {AccountId}", account.Id);
 
-            return ApiResponse<Account>.SuccessResponse(account, "Account created successfully", 201);
+            var accountDto = _mapper.MapToAccountSummaryDTO(account);
+            return ApiResponse<AccountSummaryDTO>.SuccessResponse(accountDto, "Account created successfully", 201);
         }
 
-        public async Task<ApiResponse<Account>> GetAccountByIdAsync(GetAccountRequest request)
+        public async Task<ApiResponse<AccountDTO>> GetAccountByIdAsync(GetAccountRequest request)
         {
             _logger.LogInformation("Getting account by ID {AccountId}", request.Id);
 
@@ -64,19 +68,47 @@ namespace Banking.BLL.Services
             if (request.IncludeTransactions)
             {
                 account = await _unitOfWork.Accounts.GetByIdAsync(request.Id, a => a.Transactions);
+
+                if (account == null)
+                    throw new NotFoundException($"Account with ID {request.Id} not found");
+
+                // Load target account details for transfers
+                if (account.Transactions?.Any() == true)
+                {
+                    foreach (var transaction in account.Transactions.Where(t => t.TargetAccountId.HasValue))
+                    {
+                        transaction.TargetAccount = await _unitOfWork.Accounts.GetByIdAsync(transaction.TargetAccountId.Value);
+                    }
+                }
+
+                var accountWithTransactionsDto = _mapper.MapToAccountDTO(account);
+                return ApiResponse<AccountDTO>.SuccessResponse(accountWithTransactionsDto, "Account retrieved successfully");
             }
             else
             {
                 account = await _unitOfWork.Accounts.GetByIdAsync(request.Id);
+
+                if (account == null)
+                    throw new NotFoundException($"Account with ID {request.Id} not found");
+
+                // Return as AccountDTO but without transactions
+                var accountDto = new AccountDTO
+                {
+                    Id = account.Id,
+                    AccountNumber = account.AccountNumber,
+                    OwnerName = account.OwnerName,
+                    Email = account.Email,
+                    Balance = account.InitialBalance, // Use initial balance when no transactions loaded
+                    CreatedAt = account.CreatedAt,
+                    UpdatedAt = account.UpdatedAt,
+                    Transactions = new List<TransactionSummaryDTO>()
+                };
+
+                return ApiResponse<AccountDTO>.SuccessResponse(accountDto, "Account retrieved successfully");
             }
-
-            if (account == null)
-                throw new NotFoundException($"Account with ID {request.Id} not found");
-
-            return ApiResponse<Account>.SuccessResponse(account, "Account retrieved successfully");
         }
 
-        public async Task<ApiResponse<Account>> GetAccountByNumberAsync(GetAccountByNumberRequest request)
+        public async Task<ApiResponse<AccountDTO>> GetAccountByNumberAsync(GetAccountByNumberRequest request)
         {
             _logger.LogInformation("Getting account by number {AccountNumber}", request.AccountNumber);
 
@@ -85,19 +117,46 @@ namespace Banking.BLL.Services
             if (request.IncludeTransactions)
             {
                 account = await _unitOfWork.Accounts.GetByAccountNumberWithTransactionsAsync(request.AccountNumber);
+
+                if (account == null)
+                    throw new NotFoundException($"Account with number {request.AccountNumber} not found");
+
+                // Load target account details for transfers
+                if (account.Transactions?.Any() == true)
+                {
+                    foreach (var transaction in account.Transactions.Where(t => t.TargetAccountId.HasValue))
+                    {
+                        transaction.TargetAccount = await _unitOfWork.Accounts.GetByIdAsync(transaction.TargetAccountId.Value);
+                    }
+                }
+
+                var accountDto = _mapper.MapToAccountDTO(account);
+                return ApiResponse<AccountDTO>.SuccessResponse(accountDto, "Account retrieved successfully");
             }
             else
             {
                 account = await _unitOfWork.Accounts.GetByAccountNumberAsync(request.AccountNumber);
+
+                if (account == null)
+                    throw new NotFoundException($"Account with number {request.AccountNumber} not found");
+
+                var accountDto = new AccountDTO
+                {
+                    Id = account.Id,
+                    AccountNumber = account.AccountNumber,
+                    OwnerName = account.OwnerName,
+                    Email = account.Email,
+                    Balance = account.InitialBalance,
+                    CreatedAt = account.CreatedAt,
+                    UpdatedAt = account.UpdatedAt,
+                    Transactions = new List<TransactionSummaryDTO>()
+                };
+
+                return ApiResponse<AccountDTO>.SuccessResponse(accountDto, "Account retrieved successfully");
             }
-
-            if (account == null)
-                throw new NotFoundException($"Account with number {request.AccountNumber} not found");
-
-            return ApiResponse<Account>.SuccessResponse(account, "Account retrieved successfully");
         }
 
-        public async Task<ApiResponse<PagedResult<Account>>> GetAccountsPagedAsync(GetAccountsPagedRequest request)
+        public async Task<ApiResponse<PagedResult<AccountSummaryDTO>>> GetAccountsPagedAsync(GetAccountsPagedRequest request)
         {
             _logger.LogInformation("Getting accounts paged - Page: {Page}, PageSize: {PageSize}", request.Page, request.PageSize);
 
@@ -115,12 +174,13 @@ namespace Banking.BLL.Services
                 .Take(request.PageSize)
                 .ToListAsync();
 
-            var pagedResult = new PagedResult<Account>(accounts, totalCount, request.Page, request.PageSize);
+            var accountDtos = accounts.Select(a => _mapper.MapToAccountSummaryDTO(a)).ToList();
+            var pagedResult = new PagedResult<AccountSummaryDTO>(accountDtos, totalCount, request.Page, request.PageSize);
 
-            return ApiResponse<PagedResult<Account>>.SuccessResponse(pagedResult, "Accounts retrieved successfully");
+            return ApiResponse<PagedResult<AccountSummaryDTO>>.SuccessResponse(pagedResult, "Accounts retrieved successfully");
         }
 
-        public async Task<ApiResponse<Account>> UpdateAccountAsync(UpdateAccountRequest request)
+        public async Task<ApiResponse<AccountSummaryDTO>> UpdateAccountAsync(UpdateAccountRequest request)
         {
             _logger.LogInformation("Updating account {AccountId}", request.Id);
 
@@ -147,7 +207,8 @@ namespace Banking.BLL.Services
             await _unitOfWork.Accounts.UpdateAsync(account);
             await _unitOfWork.SaveChangesAsync();
 
-            return ApiResponse<Account>.SuccessResponse(account, "Account updated successfully");
+            var accountDto = _mapper.MapToAccountSummaryDTO(account);
+            return ApiResponse<AccountSummaryDTO>.SuccessResponse(accountDto, "Account updated successfully");
         }
 
         public async Task<ApiResponse<bool>> DeleteAccountAsync(int id)
@@ -180,13 +241,14 @@ namespace Banking.BLL.Services
             return ApiResponse<decimal>.SuccessResponse(balance, "Balance retrieved successfully");
         }
 
-        public async Task<ApiResponse<IEnumerable<Account>>> GetAccountsWithRecentTransactionsAsync(DateTime fromDate)
+        public async Task<ApiResponse<IEnumerable<AccountDTO>>> GetAccountsWithRecentTransactionsAsync(DateTime fromDate)
         {
             _logger.LogInformation("Getting accounts with recent transactions from {FromDate}", fromDate);
 
             var accounts = await _unitOfWork.Accounts.GetAccountsWithRecentTransactionsAsync(fromDate);
 
-            return ApiResponse<IEnumerable<Account>>.SuccessResponse(accounts, "Accounts with recent transactions retrieved successfully");
+            var accountDtos = _mapper.MapToAccountDTOList(accounts);
+            return ApiResponse<IEnumerable<AccountDTO>>.SuccessResponse(accountDtos, "Accounts with recent transactions retrieved successfully");
         }
     }
 }

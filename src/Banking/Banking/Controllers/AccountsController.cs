@@ -1,4 +1,5 @@
 ﻿using Banking.Attributes;
+using Banking.BLL.DTOs;
 using Banking.BLL.Models;
 using Banking.BLL.Models.Account;
 using Banking.BLL.Models.Transaction;
@@ -22,18 +23,14 @@ namespace Banking.Controllers
         }
 
         [HttpPost]
-        [AllowAnonymous]
-        [RequireApiKey] 
-        public async Task<ActionResult<ApiResponse<Account>>> CreateAccount([FromBody] CreateAccountRequest request)
+        public async Task<ActionResult<ApiResponse<AccountDTO>>> CreateAccount([FromBody] CreateAccountRequest request)
         {
-            if (Request.Headers["X-API-Key"] != "your-dev-key") return Unauthorized();
-
             var response = await _accountService.CreateAccountAsync(request);
             return StatusCode(response.StatusCode, response);
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<ApiResponse<Account>>> GetAccount(int id, [FromQuery] bool includeTransactions = false)
+        public async Task<ActionResult<ApiResponse<AccountDTO>>> GetAccount(int id, [FromQuery] bool includeTransactions = false)
         {
             var request = new GetAccountRequest { Id = id, IncludeTransactions = includeTransactions };
             var response = await _accountService.GetAccountByIdAsync(request);
@@ -41,7 +38,7 @@ namespace Banking.Controllers
         }
 
         [HttpGet("by-number/{accountNumber}")]
-        public async Task<ActionResult<ApiResponse<Account>>> GetAccountByNumber(string accountNumber, [FromQuery] bool includeTransactions = false)
+        public async Task<ActionResult<ApiResponse<AccountDTO>>> GetAccountByNumber(string accountNumber, [FromQuery] bool includeTransactions = false)
         {
             var request = new GetAccountByNumberRequest { AccountNumber = accountNumber, IncludeTransactions = includeTransactions };
             var response = await _accountService.GetAccountByNumberAsync(request);
@@ -49,14 +46,14 @@ namespace Banking.Controllers
         }
 
         [HttpPost("search")]
-        public async Task<ActionResult<ApiResponse<PagedResult<Account>>>> GetAccountsPaged([FromBody] GetAccountsPagedRequest request)
+        public async Task<ActionResult<ApiResponse<PagedResult<AccountDTO>>>> GetAccountsPaged([FromBody] GetAccountsPagedRequest request)
         {
             var response = await _accountService.GetAccountsPagedAsync(request);
             return StatusCode(response.StatusCode, response);
         }
 
         [HttpPut]
-        public async Task<ActionResult<ApiResponse<Account>>> UpdateAccount([FromBody] UpdateAccountRequest request)
+        public async Task<ActionResult<ApiResponse<AccountDTO>>> UpdateAccount([FromBody] UpdateAccountRequest request)
         {
             var response = await _accountService.UpdateAccountAsync(request);
             return StatusCode(response.StatusCode, response);
@@ -77,7 +74,7 @@ namespace Banking.Controllers
         }
 
         [HttpGet("recent-transactions")]
-        public async Task<ActionResult<ApiResponse<IEnumerable<Account>>>> GetAccountsWithRecentTransactions([FromQuery] DateTime fromDate)
+        public async Task<ActionResult<ApiResponse<IEnumerable<AccountDTO>>>> GetAccountsWithRecentTransactions([FromQuery] DateTime fromDate)
         {
             var response = await _accountService.GetAccountsWithRecentTransactionsAsync(fromDate);
             return StatusCode(response.StatusCode, response);

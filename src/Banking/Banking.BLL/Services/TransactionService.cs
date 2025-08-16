@@ -1,4 +1,5 @@
-﻿using Banking.BLL.Exceptions;
+﻿using Banking.BLL.DTOs;
+using Banking.BLL.Exceptions;
 using Banking.BLL.Models;
 using Banking.BLL.Models.Transaction;
 using Banking.BLL.Services.Interfaces;
@@ -14,14 +15,16 @@ namespace Banking.BLL.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<TransactionService> _logger;
+        private readonly IBankingMapperService _mapper;
 
-        public TransactionService(IUnitOfWork unitOfWork, ILogger<TransactionService> logger)
+        public TransactionService(IUnitOfWork unitOfWork, ILogger<TransactionService> logger, IBankingMapperService mapper)
         {
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _mapper = mapper;
         }
 
-        public async Task<ApiResponse<Transaction>> CreateDepositAsync(CreateTransactionRequest request)
+        public async Task<ApiResponse<TransactionDTO>> CreateDepositAsync(CreateTransactionRequest request)
         {
             _logger.LogInformation("Creating deposit for account {AccountId}, amount {Amount}", request.AccountId, request.Amount);
 
@@ -44,11 +47,16 @@ namespace Banking.BLL.Services
 
                 await _unitOfWork.Transactions.AddAsync(transaction);
                 await _unitOfWork.SaveChangesAsync();
+
+                // Load the transaction with account details for mapping
+                transaction.Account = account;
+
                 await _unitOfWork.CommitTransactionAsync();
 
                 _logger.LogInformation("Deposit created successfully with ID {TransactionId}", transaction.Id);
 
-                return ApiResponse<Transaction>.SuccessResponse(transaction, "Deposit created successfully", 201);
+                var transactionDto = _mapper.MapToTransactionDTO(transaction);
+                return ApiResponse<TransactionDTO>.SuccessResponse(transactionDto, "Deposit created successfully", 201);
             }
             catch
             {
@@ -57,7 +65,7 @@ namespace Banking.BLL.Services
             }
         }
 
-        public async Task<ApiResponse<Transaction>> CreateWithdrawAsync(CreateTransactionRequest request)
+        public async Task<ApiResponse<TransactionDTO>> CreateWithdrawAsync(CreateTransactionRequest request)
         {
             _logger.LogInformation("Creating withdrawal for account {AccountId}, amount {Amount}", request.AccountId, request.Amount);
 
@@ -84,11 +92,16 @@ namespace Banking.BLL.Services
 
                 await _unitOfWork.Transactions.AddAsync(transaction);
                 await _unitOfWork.SaveChangesAsync();
+
+                // Load the transaction with account details for mapping
+                transaction.Account = account;
+
                 await _unitOfWork.CommitTransactionAsync();
 
                 _logger.LogInformation("Withdrawal created successfully with ID {TransactionId}", transaction.Id);
 
-                return ApiResponse<Transaction>.SuccessResponse(transaction, "Withdrawal created successfully", 201);
+                var transactionDto = _mapper.MapToTransactionDTO(transaction);
+                return ApiResponse<TransactionDTO>.SuccessResponse(transactionDto, "Withdrawal created successfully", 201);
             }
             catch
             {
@@ -97,7 +110,7 @@ namespace Banking.BLL.Services
             }
         }
 
-        public async Task<ApiResponse<IEnumerable<Transaction>>> CreateTransferAsync(CreateTransferRequest request)
+        public async Task<ApiResponse<IEnumerable<TransactionDTO>>> CreateTransferAsync(CreateTransferRequest request)
         {
             _logger.LogInformation("Creating transfer from account {FromAccountId} to {ToAccountId}, amount {Amount}",
                 request.FromAccountId, request.ToAccountId, request.Amount);
@@ -133,13 +146,19 @@ namespace Banking.BLL.Services
 
                 await _unitOfWork.Transactions.AddAsync(transferOutTransaction);
                 await _unitOfWork.SaveChangesAsync();
+
+                // Load the transaction with account details for mapping
+                transferOutTransaction.Account = fromAccount;
+                transferOutTransaction.TargetAccount = toAccount;
+
                 await _unitOfWork.CommitTransactionAsync();
 
-                var transactions = new List<Transaction> { transferOutTransaction };
+                var transactionDto = _mapper.MapToTransactionDTO(transferOutTransaction);
+                var transactions = new List<TransactionDTO> { transactionDto };
 
                 _logger.LogInformation("Transfer created successfully");
 
-                return ApiResponse<IEnumerable<Transaction>>.SuccessResponse(transactions, "Transfer completed successfully", 201);
+                return ApiResponse<IEnumerable<TransactionDTO>>.SuccessResponse(transactions, "Transfer completed successfully", 201);
             }
             catch
             {
@@ -148,7 +167,7 @@ namespace Banking.BLL.Services
             }
         }
 
-        public async Task<ApiResponse<PagedResult<Transaction>>> GetTransactionsByAccountAsync(GetTransactionsByAccountRequest request)
+        public async Task<ApiResponse<PagedResult<TransactionDTO>>> GetTransactionsByAccountAsync(GetTransactionsByAccountRequest request)
         {
             _logger.LogInformation("Getting transactions for account {AccountId}", request.AccountId);
 
@@ -166,12 +185,23 @@ namespace Banking.BLL.Services
                 .Take(request.PageSize)
                 .ToListAsync();
 
-            var pagedResult = new PagedResult<Transaction>(transactions, totalCount, request.Page, request.PageSize);
+            // Load account details for each transaction
+            foreach (var transaction in transactions)
+            {
+                transaction.Account = await _unitOfWork.Accounts.GetByIdAsync(transaction.AccountId);
+                if (transaction.TargetAccountId.HasValue)
+                {
+                    transaction.TargetAccount = await _unitOfWork.Accounts.GetByIdAsync(transaction.TargetAccountId.Value);
+                }
+            }
 
-            return ApiResponse<PagedResult<Transaction>>.SuccessResponse(pagedResult, "Transactions retrieved successfully");
+            var transactionDtos = _mapper.MapToTransactionDTOList(transactions);
+            var pagedResult = new PagedResult<TransactionDTO>(transactionDtos, totalCount, request.Page, request.PageSize);
+
+            return ApiResponse<PagedResult<TransactionDTO>>.SuccessResponse(pagedResult, "Transactions retrieved successfully");
         }
 
-        public async Task<ApiResponse<PagedResult<Transaction>>> GetTransactionsByDateRangeAsync(GetTransactionsByDateRangeRequest request)
+        public async Task<ApiResponse<PagedResult<TransactionDTO>>> GetTransactionsByDateRangeAsync(GetTransactionsByDateRangeRequest request)
         {
             _logger.LogInformation("Getting transactions from {FromDate} to {ToDate}", request.FromDate, request.ToDate);
 
@@ -188,9 +218,20 @@ namespace Banking.BLL.Services
                 .Take(request.PageSize)
                 .ToListAsync();
 
-            var pagedResult = new PagedResult<Transaction>(transactions, totalCount, request.Page, request.PageSize);
+            // Load account details for each transaction
+            foreach (var transaction in transactions)
+            {
+                transaction.Account = await _unitOfWork.Accounts.GetByIdAsync(transaction.AccountId);
+                if (transaction.TargetAccountId.HasValue)
+                {
+                    transaction.TargetAccount = await _unitOfWork.Accounts.GetByIdAsync(transaction.TargetAccountId.Value);
+                }
+            }
 
-            return ApiResponse<PagedResult<Transaction>>.SuccessResponse(pagedResult, "Transactions retrieved successfully");
+            var transactionDtos = _mapper.MapToTransactionDTOList(transactions);
+            var pagedResult = new PagedResult<TransactionDTO>(transactionDtos, totalCount, request.Page, request.PageSize);
+
+            return ApiResponse<PagedResult<TransactionDTO>>.SuccessResponse(pagedResult, "Transactions retrieved successfully");
         }
 
         public async Task<ApiResponse<decimal>> GetAccountBalanceAsync(GetAccountBalanceRequest request)
@@ -206,7 +247,7 @@ namespace Banking.BLL.Services
             return ApiResponse<decimal>.SuccessResponse(balance, "Balance retrieved successfully");
         }
 
-        public async Task<ApiResponse<IEnumerable<Transaction>>> GetTransactionsWithAccountsAsync(int accountId)
+        public async Task<ApiResponse<IEnumerable<TransactionDTO>>> GetTransactionsWithAccountsAsync(int accountId)
         {
             _logger.LogInformation("Getting transactions with account details for account {AccountId}", accountId);
 
@@ -216,7 +257,8 @@ namespace Banking.BLL.Services
 
             var transactions = await _unitOfWork.Transactions.GetTransactionsWithAccountsAsync(accountId);
 
-            return ApiResponse<IEnumerable<Transaction>>.SuccessResponse(transactions, "Transactions with account details retrieved successfully");
+            var transactionDtos = _mapper.MapToTransactionDTOList(transactions);
+            return ApiResponse<IEnumerable<TransactionDTO>>.SuccessResponse(transactionDtos, "Transactions with account details retrieved successfully");
         }
     }
 

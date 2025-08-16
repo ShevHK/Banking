@@ -1,18 +1,4 @@
 @Banking_HostAddress = http://localhost:5244
-
-### Create Account (with API Key)
-POST {{Banking_HostAddress}}/api/accounts
-X-Api-Key: abra-cadabra
-Content-Type: application/json
-
-{
-  "ownerName": "Admin Admin",
-  "email": "admin@bank.com",
-  "initialBalance": 1000.00
-}
-
-
-@Banking_HostAddress = http://localhost:5244
 @authToken = 
 
 
