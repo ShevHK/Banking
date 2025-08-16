@@ -48,7 +48,7 @@ namespace Banking.BLL.Services
             {
                 Id = transaction.Id,
                 AccountId = transaction.AccountId,
-                Type = transaction.Type,
+                TransactionType = transaction.Type.ToString(),
                 Amount = transaction.Amount,
                 CreatedAt = transaction.CreatedAt,
                 TargetAccountId = transaction.TargetAccountId,
@@ -66,7 +66,7 @@ namespace Banking.BLL.Services
             return new TransactionSummaryDTO
             {
                 Id = transaction.Id,
-                Type = transaction.Type,
+                TransactionType = transaction.Type.ToString(),
                 Amount = transaction.Amount,
                 CreatedAt = transaction.CreatedAt,
                 TargetAccountId = transaction.TargetAccountId,
